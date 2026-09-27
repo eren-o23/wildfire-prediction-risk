@@ -1,0 +1,10 @@
+# Planning doc stays local
+wildfire-risk-prediction-project.md
+
+data/
+.venv/
+.env
+mlruns/
+.ipynb_checkpoints/
+__pycache__/
+.DS_Store

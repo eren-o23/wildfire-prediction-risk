@@ -1,0 +1,23 @@
+[project]
+name = "wildfire"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "jupyter>=1.1.1",
+    "matplotlib>=3.11.2",
+    "pandas>=3.0.6",
+    "pyarrow>=25.0.1",
+    "python-dotenv>=1.2.3",
+    "requests>=2.34.2",
+    "scikit-learn>=1.9.1",
+    "shapely>=2.1.2",
+    "xgboost>=3.4.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
