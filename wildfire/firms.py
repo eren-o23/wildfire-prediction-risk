@@ -14,10 +14,12 @@ CA_BBOX = "-124.5,32.5,-114.1,42.0"  # west,south,east,north
 # why: _SP = standard processing, the corrected archive. Live serving (Phase 1) will use _NRT
 # data, which FIRMS revises later. Recording which version we trained on explains any gap
 # between offline and live accuracy (tracked in Phase 6).
-SOURCES = ("VIIRS_SNPP_SP", "VIIRS_NOAA20_SP")
+SOURCES = ("VIIRS_NOAA20_SP",)
+# why: one satellite only. SNPP has outages (e.g. late July 2024), and mixing sensors makes a fire
+# look like it shrinks whenever one satellite drops out, which would corrupt the labels.
 SEASONS = (2022, 2023, 2024)  # Open-Meteo historical forecasts start ~2022
 URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{key}/{src}/{bbox}/{days}/{start}"
-MAX_DAYS = 10  # FIRMS area API limit per request
+MAX_DAYS = 5  # FIRMS area API limit per request
 
 
 def _fetch_chunk(key: str, src: str, start: date, days: int) -> pd.DataFrame:
@@ -30,11 +32,12 @@ def _fetch_chunk(key: str, src: str, start: date, days: int) -> pd.DataFrame:
     url = URL.format(key=key, src=src, bbox=CA_BBOX, days=days, start=start)
     for attempt in range(4):
         r = requests.get(url, timeout=120)
-        if r.ok and r.text.startswith("latitude"):
+        # a bad request or key won't fix itself, so only retry other failures
+        if (r.ok and r.text.startswith("latitude")) or r.status_code == 400 or r.text.startswith("Invalid"):
             break
         # why: FIRMS delays and rate limits are routine, so back off and retry, don't crash
         time.sleep(5 * 2**attempt)
-    else:
+    if not r.text.startswith("latitude"):
         raise RuntimeError(f"FIRMS {src} {start}: HTTP {r.status_code} {r.text[:200]}")
     df = pd.read_csv(io.StringIO(r.text), dtype={"acq_time": str, "confidence": str})
     df["source"] = src
@@ -44,7 +47,7 @@ def _fetch_chunk(key: str, src: str, start: date, days: int) -> pd.DataFrame:
 
 
 def pull(seasons=SEASONS, sources=SOURCES) -> None:
-    """Download Jun-Nov of each season in 10-day chunks. Safe to re-run: cached chunks are skipped."""
+    """Download Jun-Nov of each season in 5-day chunks. Safe to re-run: cached chunks are skipped."""
     load_dotenv()
     key = os.environ["FIRMS_MAP_KEY"]
     for year in seasons:
