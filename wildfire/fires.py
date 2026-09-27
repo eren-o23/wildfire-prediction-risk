@@ -61,7 +61,8 @@ def track(det: pd.DataFrame, eps_km=1.5, link_km=3.0, memory=pd.Timedelta("72h")
     # why: past rows keep the fire_id they had at the time (point-in-time); merges are a log,
     # not a rewrite of history
     det["fire_id"] = fire_ids
-    return det, pd.DataFrame(merges, columns=["bin", "survivor", "absorbed"])
+    merges = pd.DataFrame(merges, columns=["bin", "survivor", "absorbed"])
+    return det, merges.astype({"bin": det["bin"].dtype, "survivor": "int64", "absorbed": "int64"})
 
 
 def hull_area_km2(lat: np.ndarray, lon: np.ndarray) -> float:
