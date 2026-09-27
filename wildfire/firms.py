@@ -30,15 +30,20 @@ def _fetch_chunk(key: str, src: str, start: date, days: int) -> pd.DataFrame:
     if path.exists():
         return pd.read_parquet(path)
     url = URL.format(key=key, src=src, bbox=CA_BBOX, days=days, start=start)
+    r = None
     for attempt in range(4):
-        r = requests.get(url, timeout=120)
+        try:
+            r = requests.get(url, timeout=120)
+        except requests.RequestException:  # timeouts and dropped connections are transient too
+            time.sleep(5 * 2**attempt)
+            continue
         # a bad request or key won't fix itself, so only retry other failures
         if (r.ok and r.text.startswith("latitude")) or r.status_code == 400 or r.text.startswith("Invalid"):
             break
         # why: FIRMS delays and rate limits are routine, so back off and retry, don't crash
         time.sleep(5 * 2**attempt)
-    if not r.text.startswith("latitude"):
-        raise RuntimeError(f"FIRMS {src} {start}: HTTP {r.status_code} {r.text[:200]}")
+    if r is None or not r.text.startswith("latitude"):
+        raise RuntimeError(f"FIRMS {src} {start}: {r.status_code if r is not None else 'no response'} {r.text[:200] if r is not None else ''}")
     df = pd.read_csv(io.StringIO(r.text), dtype={"acq_time": str, "confidence": str})
     df["source"] = src
     path.parent.mkdir(parents=True, exist_ok=True)

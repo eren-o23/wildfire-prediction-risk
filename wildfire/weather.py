@@ -25,12 +25,17 @@ def _fetch(lat: float, lon: float, start, end) -> pd.DataFrame:
         return pd.read_parquet(path)
     params = dict(latitude=lat, longitude=lon, start_date=start, end_date=end, hourly=",".join(HOURLY), timezone="UTC")
     for attempt in range(5):
-        r = requests.get(URL, params=params, timeout=60)
+        try:
+            r = requests.get(URL, params=params, timeout=60)
+        except requests.RequestException as e:  # timeouts and dropped connections are transient too
+            print(f"Open-Meteo {lat},{lon}: {type(e).__name__}, retrying")
+            time.sleep(10 * 2**attempt)
+            continue
         if r.ok:
             break
         time.sleep(30 * 2**attempt if r.status_code == 429 else 5)
     else:
-        raise RuntimeError(f"Open-Meteo {lat},{lon}: HTTP {r.status_code} {r.text[:200]}")
+        raise RuntimeError(f"Open-Meteo {lat},{lon}: gave up after retries")
     df = pd.DataFrame(r.json()["hourly"])
     df["time"] = pd.to_datetime(df["time"], utc=True)
     df["cell_lat"], df["cell_lon"] = lat, lon
